@@ -1,0 +1,491 @@
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include <string>
+using namespace std;
+
+char bugBox[400];
+const int UP = 1;
+const int DOWN = 2;
+const int LEFT = 3;
+const int RIGHT = 4;
+
+class Organism{
+private:
+    int spawnTime;
+    int position; //0-399
+public:
+    Organism():spawnTime(0),position(0){};
+    Organism(int newSpawnTime, int newPosition):spawnTime(newSpawnTime),position(newPosition){};
+    void setSpawnTime(int newSpawnTime){spawnTime = newSpawnTime;}
+    int getSpawnTime()const{return spawnTime;}
+    void setPosition(int newPositione){position = newPositione;}
+    int getPosition()const{return position;}
+    virtual void move(){};
+    void getSpawnDirection(int& direction, const int position, const bool isLeftMerge, const bool isRightMerge);
+
+};
+
+class Ant : public Organism{
+private:
+    bool isEaten;
+public:
+    Ant():Organism(),isEaten(false){};
+    Ant(int newSpawnTime, int newPosition, bool newIseaten):
+            Organism(newSpawnTime, newPosition),isEaten(newIseaten){};
+    virtual void move(vector<Ant*>& normalAnts, char* bugBox, int insOfAnt, int& newAntNum);
+    virtual void reproduce(vector<Ant*>& normalAnts, int insOfAnt, int& newAntNum);
+};
+
+class Dood : public Organism{
+private:
+    bool isEat;
+    int surviveTime = 0;
+public:
+    Dood():Organism(),isEat(false), surviveTime(0){};
+    Dood(int newSpawnTime, int newPosition, bool newIsEat, int newSurviveTime):
+            Organism(newSpawnTime, newPosition),isEat(newIsEat), surviveTime(newSurviveTime){};
+    virtual void move(char* bugBox, vector<Dood*>& doodles,
+                      vector<Ant*>& normalAnts, int i, int& newAntNum, int& doodNum, int& newDoodNum, bool& isDead);
+    virtual void reproduce(vector<Dood*>& doodles, int i, int& newDoodNum);
+    void setSurviveTime(int newSurviveTime){surviveTime = newSurviveTime;}
+    int getSurviveTime()const{return surviveTime;}
+    int getIsEat()const{return isEat;}
+};
+
+int main(){
+    int antNum = 100;
+    int doodNum = 5;
+
+    vector<Ant*> normalAnts;
+    vector<Dood*> doodles;
+
+    //initialize bugbox
+    int wide = 1;
+    for(int i = 0; i < 400; i++)
+        bugBox[i] = '-';
+
+    srand(time(0));
+    int bug_position[105];
+    bool isrepeat = false;
+
+    //get random original positions for bugs
+    for(int i = 0; i < 105; i++){
+        bug_position[i] = (rand() % 399) + 1;
+
+        //determine if repeat
+        do {
+            for (int j = 0; j < i; j++)
+                if (bug_position[i] == bug_position[j]) {
+                    isrepeat = true;
+                    bug_position[i] = (rand() % 399) + 1;
+                }
+                else
+                    isrepeat = false;
+        }while(isrepeat == true);
+
+        if(i < 100){
+            Ant* ant = new Ant(0, bug_position[i], false);
+            normalAnts.push_back(ant);
+        }
+        else{
+            Dood* doodle = new Dood(0, bug_position[i], false, 0);
+            doodles.push_back(doodle);
+        }
+    }
+
+    cout << "Beginning Situation: " << endl;
+    cout << "doodNum: " << doodNum << endl;
+    cout << "antNum: " << antNum << endl;
+    for(int i = 0; i < normalAnts.size(); i++)
+        bugBox[normalAnts[i] -> getPosition()] = 'o';
+
+    for(int i = 0; i < doodles.size(); i++)
+        bugBox[doodles[i] -> getPosition()] = 'X';
+
+    wide = 1;
+    for(int i = 0; i < 400; i++){
+        if(wide == 21) {
+            cout << endl;
+            wide = 1;
+        }
+        cout << bugBox[i];
+        wide++;
+    }
+
+    string input;
+    cout << endl << endl << "Press Enter to move on:";
+
+    int newAntNum = antNum;
+    int newDoodNum = doodNum;
+    bool isDead = false;
+    int timeStep = 1;
+    while(getline(cin, input)){
+        cout << "Time Step: " << timeStep << endl;
+
+        //doodle action
+        for (int i = 0; i < doodNum; i++) {
+            //move
+            doodles[i] -> move(&bugBox[0], doodles, normalAnts, i, newAntNum, doodNum, newDoodNum, isDead);
+            //reproduce
+            if(doodles[i] -> getSpawnTime() == 8 && isDead == false)
+                doodles[i] -> reproduce(doodles, i, newDoodNum);
+
+            if(isDead == true)
+                i--;
+        }
+
+        doodNum = newDoodNum;
+        antNum = newAntNum;
+
+        //ant action
+        for(int i = 0; i < antNum; i++){
+            //move
+            normalAnts[i]->move(normalAnts, &bugBox[0], i, newAntNum);
+            //reproduce
+            if(normalAnts[i] -> getSpawnTime() == 3)
+                normalAnts[i]->reproduce(normalAnts, i, newAntNum);
+        }
+
+        cout << "doodNum: " << newDoodNum << endl;
+        cout << "antNum: " << newAntNum << endl;
+
+        antNum = newAntNum;
+
+        //print new bugBox
+        wide = 1;
+        for (int i = 0; i < 400; i++) {
+            if (wide == 21) {
+                cout << endl;
+                wide = 1;
+            }
+            cout << bugBox[i];
+            wide++;
+        }
+        cout << endl << endl << "Press Enter to move on:" << endl;
+        timeStep++;
+    }
+    return 0;
+}
+
+void Dood :: move(char* bugBox, vector<Dood*>& doodles,
+                  vector<Ant*>& normalAnts, int i, int& newAntNum, int& doodNum, int& newDoodNum, bool& isDead){
+    isDead = false;
+
+    int index = i;
+    int position = doodles[index] -> getPosition();
+    int surviveTime = doodles[index] -> getSurviveTime();
+    int spawnTime = doodles[index] -> getSpawnTime();
+
+    int direction;
+    direction = (rand() % 4) + 1;
+
+    bool isLeftMerge, isRightMerge;
+
+    if(position % 10 == 9 && (position / 10) % 2 == 1)
+        isRightMerge = true;
+    else if(position % 10 == 0 && (position / 10) % 2 == 0)
+        isLeftMerge = true;
+    else
+        isLeftMerge = isRightMerge = false;
+
+    //test adjacent ants
+    int antAdjacent[4] = {-1, -1, -1, -1};
+    int antAdjacentNum = 0;
+
+    if(bugBox[position - 20] == 'o'){
+        direction = UP;
+        antAdjacent[UP - 1] = position - 20;
+        antAdjacentNum++;
+    }
+    if(bugBox[position + 20] == 'o'){
+        direction = DOWN;
+        antAdjacent[DOWN - 1] = position + 20;
+        antAdjacentNum++;
+    }
+    if(bugBox[position - 1] == 'o' && isLeftMerge == false){
+        direction = LEFT;
+        antAdjacent[LEFT - 1] = position - 1;
+        antAdjacentNum++;
+    }
+    if(bugBox[position + 1] == 'o' && isRightMerge == false){
+        direction = RIGHT;
+        antAdjacent[RIGHT - 1] = position + 1;
+        antAdjacentNum++;
+    }
+
+    if(antAdjacentNum >= 1){
+        doodles[index] -> setSurviveTime(0);
+
+        //if there are more than one ants adjacent, get a random direction
+        if(antAdjacentNum > 1){
+            do {
+                direction = (rand() % 4) + 1;
+            } while (antAdjacent[direction - 1] == -1);
+        }
+
+        //reset survive time to 0, spawnTime + 1
+        for(int i = 0; i < normalAnts.size(); i++){
+            if (normalAnts[i] -> getPosition() == antAdjacent[direction - 1]){
+                //reset symbol
+                bugBox[position] = '-';
+                doodles[index] -> setPosition(antAdjacent[direction - 1]);
+                bugBox[doodles[index]->getPosition()] = 'X';
+
+                //add 1 to spawn time
+                doodles[index] -> setSpawnTime(spawnTime + 1);
+
+                //reset the ant array
+                for (int j = i; j < normalAnts.size() - 1; j++)
+                    normalAnts[j] = normalAnts[j + 1];
+
+                //delete ant
+                normalAnts.pop_back();
+                newAntNum--;
+            }
+        }
+    }
+    else {
+        //no adjacent ant, move to a random direction, surviveTime + 1, spawnTime + 1
+        if (direction == UP && position > 19 && bugBox[position - 20] != 'X') {
+            bugBox[position] = '-';
+            doodles[index]->setPosition(position - 20);
+            doodles[index]->setSurviveTime(surviveTime + 1);
+            doodles[index]->setSpawnTime(spawnTime + 1);
+            bugBox[doodles[index]->getPosition()] = 'X';
+        } else if (direction == DOWN && position < 380 && bugBox[position + 20] != 'X') {
+            bugBox[position] = '-';
+            doodles[index]->setPosition(position + 20);
+            doodles[index]->setSurviveTime(surviveTime + 1);
+            doodles[index]->setSpawnTime(spawnTime + 1);
+            bugBox[doodles[index]->getPosition()] = 'X';
+        } else if (direction == LEFT && isLeftMerge == false && bugBox[position - 1] != 'X') {
+            bugBox[position] = '-';
+            doodles[index]->setPosition(position - 1);
+            doodles[index]->setSurviveTime(surviveTime + 1);
+            doodles[index]->setSpawnTime(spawnTime + 1);
+            bugBox[doodles[index]->getPosition()] = 'X';
+        } else if (direction == RIGHT && isRightMerge == false && bugBox[position + 1] != 'X') {
+            bugBox[position] = '-';
+            doodles[index]->setPosition(position + 1);
+            doodles[index]->setSurviveTime(surviveTime + 1);
+            doodles[index]->setSpawnTime(spawnTime + 1);
+            bugBox[doodles[index]->getPosition()] = 'X';
+        } else {
+            doodles[index]->setSurviveTime(surviveTime + 1);
+            doodles[index]->setSpawnTime(spawnTime + 1);
+            bugBox[doodles[index]->getPosition()] = 'X';
+        }
+    }
+
+    //starve and dead, the position has been changed
+    if(doodles[index] -> getSurviveTime() == 3){
+        isDead = true;
+        //set new position to '-'
+        bugBox[doodles[index] -> getPosition()] = '-';
+        //reset array doodle bug
+        for (int j = index; j < doodles.size() - 1; j++) {
+            doodles[j] = doodles[j + 1];
+        }
+        //remove the doodlebug
+        doodles.pop_back();
+        newDoodNum--;
+        doodNum--;
+    }
+}
+
+void Dood :: reproduce(vector<Dood*>& doodles, int i, int& newDoodNum){
+    int index = i;
+    int position = doodles[index] -> getPosition();
+    int spawnTime = doodles[index] -> getSpawnTime();
+
+    int direction;
+
+    //test marge
+    bool isLeftMerge, isRightMerge;
+    if(position % 10 == 9 && (position / 10) % 2 == 1)
+        isRightMerge = true;
+    else if(position % 10 == 0 && (position / 10) % 2 == 0)
+        isLeftMerge = true;
+    else
+        isLeftMerge = isRightMerge = false;
+
+    //test empty cells, and find direction
+    getSpawnDirection(direction, position, isLeftMerge, isRightMerge);
+
+    //reproduce
+    if(direction == UP && position > 19 && bugBox[position - 20] == '-'){
+        //produce a new doodlebug, and add it to doodlebug array
+        Dood* doodle = new Dood(0, position - 20, false, 0);
+        doodles.push_back(doodle);
+
+        //reset spawn time to 0
+        doodles[index] -> setSpawnTime(0);
+        newDoodNum++;
+
+        //get the new doodlebug's position and set the symbol to 'X'
+        bugBox[doodles[doodles.size() - 1] -> getPosition()] = 'X';
+
+    }
+    else if(direction == DOWN && position < 380 && bugBox[position + 20] == '-'){
+        Dood* doodle = new Dood(0, position + 20, false, 0);
+        doodles.push_back(doodle);
+        doodles[index] -> setSpawnTime(0);
+        newDoodNum++;
+        bugBox[doodles[doodles.size() - 1] -> getPosition()] = 'X';
+    }
+    else if(direction == LEFT && isLeftMerge == false && bugBox[position - 1] == '-'){
+        Dood* doodle = new Dood(0, position - 1, false, 0);
+        doodles.push_back(doodle);
+        doodles[index] -> setSpawnTime(0);
+        newDoodNum++;
+        bugBox[doodles[doodles.size() - 1] -> getPosition()] = 'X';
+    }
+    else if(direction == RIGHT && isRightMerge == false && bugBox[position + 1] == '-'){
+        Dood* doodle = new Dood(0, position + 1, false, 0);
+        doodles.push_back(doodle);
+        doodles[index] -> setSpawnTime(0);
+        newDoodNum++;
+        bugBox[doodles[doodles.size() - 1] -> getPosition()] = 'X';
+    }
+    else //direction = 0, no reproduce, but still reset the spawn time to 0
+        doodles[index] -> setSpawnTime(0);
+}
+
+void Ant :: move(vector<Ant*>& normalAnts, char* bugBox, int insOfAnt, int& newAntNum) {
+    int index = insOfAnt;   //index of Ant vector
+    int position = normalAnts[index]->getPosition();   //position of normalAnts[index] in the bugBox
+    int spawnTime = normalAnts[index]->getSpawnTime(); //spawnTime of normalAnts[index] in the bugBox
+
+    //get a random direction
+    int direction;
+    direction = (rand() % 4) + 1;
+
+    //test marge
+    bool isLeftMerge, isRightMerge;
+    if (position % 10 == 9 && (position / 10) % 2 == 1)
+        isRightMerge = true;
+    else if (position % 10 == 0 && (position / 10) % 2 == 0)
+        isLeftMerge = true;
+    else
+        isLeftMerge = isRightMerge = false;
+
+    //decide moving or not
+    //direction is UP and there is empty cell available, change symbol, change position, spawnTime + 1
+    if (direction == UP && position > 19 && bugBox[position - 20] == '-') {
+        bugBox[position] = '-';
+        normalAnts[index]->setPosition(position - 20);
+        bugBox[position - 20] = 'o';
+        normalAnts[index]->setSpawnTime(spawnTime + 1);
+    } else if (direction == DOWN && position < 380 && bugBox[position + 20] == '-') {
+        bugBox[position] = '-';
+        normalAnts[index]->setPosition(position + 20);
+        bugBox[position + 20] = 'o';
+        normalAnts[index]->setSpawnTime(spawnTime + 1);
+    } else if (direction == LEFT && isLeftMerge == false && bugBox[position - 1] == '-') {
+        bugBox[position] = '-';
+        normalAnts[index]->setPosition(position - 1);
+        bugBox[position - 1] = 'o';
+        normalAnts[index]->setSpawnTime(spawnTime + 1);
+    } else if (direction == RIGHT && isRightMerge == false && bugBox[position + 1] == '-') {
+        bugBox[position] = '-';
+        normalAnts[index]->setPosition(position + 1);
+        bugBox[position + 1] = 'o';
+        normalAnts[index]->setSpawnTime(spawnTime + 1);
+    } else {
+        //do not move, but spawnTime + 1
+        normalAnts[index]->setSpawnTime(spawnTime + 1);
+    }
+}
+
+void Ant :: reproduce(vector<Ant*>& normalAnts, int insOfAnt, int& newAntNum){
+    int index = insOfAnt;
+    int position = normalAnts[index] -> getPosition();
+    int spawnTime = normalAnts[index] -> getSpawnTime();
+
+    int direction;
+    direction = (rand() % 4) + 1;
+
+    //test marge
+    bool isLeftMerge, isRightMerge;
+    if(position % 10 == 9 && (position / 10) % 2 == 1)
+        isRightMerge = true;
+    else if(position % 10 == 0 && (position / 10) % 2 == 0)
+        isLeftMerge = true;
+    else
+        isLeftMerge = isRightMerge = false;
+
+    //test empty cells, and find direction
+    getSpawnDirection(direction, position, isLeftMerge, isRightMerge);
+
+    //reproduce
+    if(direction == UP && position > 19 && bugBox[position - 20] == '-'){
+        //produce a new ant, and add it to normalAnts array
+        Ant* ant = new Ant(0, position - 20, false);
+        normalAnts.push_back(ant);
+        //reset spawn time to 0
+        normalAnts[index] -> setSpawnTime(0);
+        newAntNum++;
+        //get the new ant's position and set its symbol to 'o'
+        bugBox[normalAnts[normalAnts.size() - 1] -> getPosition()] = 'o';
+    }
+    else if(direction == DOWN && position < 380 && bugBox[position + 20] == '-'){
+        Ant* ant = new Ant(0, position + 20, false);
+        normalAnts.push_back(ant);
+        normalAnts[index] -> setSpawnTime(0);
+        newAntNum++;
+        bugBox[normalAnts[normalAnts.size() - 1] -> getPosition()] = 'o';
+    }
+    else if(direction == LEFT && isLeftMerge == false && bugBox[position - 1] == '-'){
+        Ant* ant = new Ant(0, position - 1, false);
+        normalAnts.push_back(ant);
+        normalAnts[index] -> setSpawnTime(0);
+        newAntNum++;
+        bugBox[normalAnts[normalAnts.size() - 1] -> getPosition()] = 'o';
+    }
+    else if(direction == RIGHT && isRightMerge == false && bugBox[position + 1] == '-'){
+        Ant* ant = new Ant(0, position + 1, false);
+        normalAnts.push_back(ant);
+        normalAnts[index] -> setSpawnTime(0);
+        newAntNum++;
+        bugBox[normalAnts[normalAnts.size() - 1] -> getPosition()] = 'o';
+    }
+    else
+        normalAnts[index] -> setSpawnTime(0);
+}
+
+void Organism :: getSpawnDirection(int& direction, const int position, const bool isLeftMerge, const bool isRightMerge){
+    //test empty cells
+    int emptySpace[4] = {-1, -1, -1, -1};
+    int emptySpaceNum = 0;
+
+    if(bugBox[position - 20] == '-'){
+        direction = UP;
+        emptySpace[UP - 1] = position - 20;
+        emptySpaceNum++;
+    }
+    if(bugBox[position + 20] == '-'){
+        direction = DOWN;
+        emptySpace[DOWN - 1] = position + 20;
+        emptySpaceNum++;
+    }
+    if(bugBox[position - 1] == '-' && isLeftMerge == false){
+        direction = LEFT;
+        emptySpace[LEFT - 1] = position - 1;
+        emptySpaceNum++;
+    }
+    if(bugBox[position + 1] == '-' && isRightMerge == false){
+        direction = RIGHT;
+        emptySpace[RIGHT - 1] = position + 1;
+        emptySpaceNum++;
+    }
+
+    if(emptySpaceNum > 1){ //more than one empty cells, get a random direction to reproduce
+        do {
+            direction = (rand() % 4) + 1;
+        } while (emptySpace[direction - 1] == -1);
+    }
+    else if(emptySpaceNum == 0)
+        direction = 0;  // do not reproduce
+}
